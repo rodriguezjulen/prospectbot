@@ -63,3 +63,54 @@ export async function getValidatedContactsForExport(minConfidence = 60): Promise
   );
   return rows;
 }
+
+export interface LeadListItem extends ContactRecord {
+  company_name: string;
+  domain: string;
+  country: string | null;
+  tech_stack: string[];
+  size_range: string | null;
+}
+
+/** All contacts for the dashboard, most recent first, with a search filter on email/company/domain. */
+export async function listLeads(search: string, limit: number, offset: number): Promise<{ rows: LeadListItem[]; total: number }> {
+  const like = `%${search.trim()}%`;
+  const { rows } = await pool.query<LeadListItem>(
+    `SELECT c.*, co.name AS company_name, co.domain, co.country, co.tech_stack, co.size_range
+     FROM contacts c
+     JOIN companies co ON co.id = c.company_id
+     WHERE $1 = '' OR c.email ILIKE $2 OR co.name ILIKE $2 OR co.domain ILIKE $2
+     ORDER BY c.created_at DESC
+     LIMIT $3 OFFSET $4`,
+    [search.trim(), like, limit, offset]
+  );
+  const { rows: countRows } = await pool.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+     FROM contacts c
+     JOIN companies co ON co.id = c.company_id
+     WHERE $1 = '' OR c.email ILIKE $2 OR co.name ILIKE $2 OR co.domain ILIKE $2`,
+    [search.trim(), like]
+  );
+  return { rows, total: Number(countRows[0]?.count ?? 0) };
+}
+
+export interface DashboardStats {
+  totalCompanies: number;
+  totalContacts: number;
+  lastExport: CampaignExportRecord | null;
+  exportsHistory: CampaignExportRecord[];
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const [{ rows: companyCount }, { rows: contactCount }, { rows: exports }] = await Promise.all([
+    pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM companies'),
+    pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM contacts'),
+    pool.query<CampaignExportRecord>('SELECT * FROM campaign_exports ORDER BY export_date DESC LIMIT 10'),
+  ]);
+  return {
+    totalCompanies: Number(companyCount[0]?.count ?? 0),
+    totalContacts: Number(contactCount[0]?.count ?? 0),
+    lastExport: exports[0] ?? null,
+    exportsHistory: exports,
+  };
+}

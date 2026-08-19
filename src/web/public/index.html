@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>ProspectBot Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f7f7f8; --card: #ffffff; --text: #1a1a1a; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #2563eb; --accent-bg: #eff6ff; --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #171a21; --text: #e5e7eb; --muted: #9ca3af;
+      --border: #2a2e37; --accent: #60a5fa; --accent-bg: #16223a; --danger: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { padding: 24px 32px; border-bottom: 1px solid var(--border); }
+  h1 { margin: 0; font-size: 20px; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  main { padding: 24px 32px; max-width: 1100px; margin: 0 auto; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat .num { font-size: 26px; font-weight: 700; }
+  .stat .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  input[type=text] { flex: 1; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); font-size: 11px; font-weight: 600; }
+  .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); font-size: 13px; }
+  button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .error { color: var(--danger); padding: 40px; text-align: center; }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ProspectBot</h1>
+  <div class="sub">Dashboard de leads B2B</div>
+</header>
+<main>
+  <div id="stats" class="stats"></div>
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Buscar por email, empresa o dominio…">
+  </div>
+  <div id="content"></div>
+  <div class="pager" id="pager" style="display:none">
+    <span id="pagerInfo"></span>
+    <div>
+      <button id="prevBtn">← Anterior</button>
+      <button id="nextBtn">Siguiente →</button>
+    </div>
+  </div>
+</main>
+<script>
+let page = 1;
+let query = '';
+let debounceTimer;
+
+async function loadStats() {
+  const el = document.getElementById('stats');
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) throw new Error(await res.text());
+    const s = await res.json();
+    const lastExportDate = s.lastExport ? new Date(s.lastExport.export_date).toLocaleDateString('es-ES') : '—';
+    el.innerHTML = `
+      <div class="stat"><div class="num">${s.totalCompanies}</div><div class="label">Empresas</div></div>
+      <div class="stat"><div class="num">${s.totalContacts}</div><div class="label">Contactos</div></div>
+      <div class="stat"><div class="num">${lastExportDate}</div><div class="label">Último export</div></div>
+    `;
+  } catch (err) {
+    el.innerHTML = '';
+  }
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadLeads() {
+  const content = document.getElementById('content');
+  const pager = document.getElementById('pager');
+  try {
+    const res = await fetch(`/api/leads?q=${encodeURIComponent(query)}&page=${page}`);
+    if (res.status === 503) {
+      content.innerHTML = '<div class="error">Base de datos no disponible. Revisa DATABASE_URL y que Postgres esté corriendo.</div>';
+      pager.style.display = 'none';
+      return;
+    }
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    if (data.rows.length === 0) {
+      content.innerHTML = '<div class="empty">No hay leads todavía. Corre <code>npm run dev</code> para generar el primer lote.</div>';
+      pager.style.display = 'none';
+      return;
+    }
+
+    const rowsHtml = data.rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.email)}</td>
+        <td>${escapeHtml(r.company_name)}</td>
+        <td>${escapeHtml(r.job_title || '—')}</td>
+        <td><span class="badge">${r.confidence_score ?? 0}%</span></td>
+        <td>${escapeHtml(r.country || '—')}</td>
+        <td>${escapeHtml(r.domain)}</td>
+      </tr>
+    `).join('');
+
+    content.innerHTML = `
+      <table>
+        <thead><tr><th>Email</th><th>Empresa</th><th>Cargo</th><th>Confianza</th><th>País</th><th>Dominio</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+
+    const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+    document.getElementById('pagerInfo').textContent = `${data.total} leads · página ${page} de ${totalPages}`;
+    document.getElementById('prevBtn').disabled = page <= 1;
+    document.getElementById('nextBtn').disabled = page >= totalPages;
+    pager.style.display = 'flex';
+  } catch (err) {
+    content.innerHTML = '<div class="error">Error cargando leads.</div>';
+    pager.style.display = 'none';
+  }
+}
+
+document.getElementById('search').addEventListener('input', (e) => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    query = e.target.value;
+    page = 1;
+    loadLeads();
+  }, 300);
+});
+document.getElementById('prevBtn').addEventListener('click', () => { if (page > 1) { page--; loadLeads(); } });
+document.getElementById('nextBtn').addEventListener('click', () => { page++; loadLeads(); });
+
+loadStats();
+loadLeads();
+</script>
+</body>
+</html>

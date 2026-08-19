@@ -4,12 +4,16 @@
   "description": "Automated B2B lead generator (startups/pymes tech) with weekly CSV export for Lemlist",
   "main": "dist/main.js",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy:static",
+    "copy:static": "mkdir -p dist/web/public && cp -r src/web/public/. dist/web/public/",
     "start": "node dist/main.js",
     "dev": "ts-node src/main.ts --once",
     "run:once": "ts-node src/main.ts --once",
+    "web": "ts-node src/web/server.ts",
     "db:init": "ts-node src/db/init.ts",
     "test:scraper": "ts-node src/scraper/test.ts",
     "typecheck": "tsc --noEmit"
@@ -18,12 +22,14 @@
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.3.1",
+    "express": "^5.2.1",
     "node-cron": "^3.0.2",
     "pg": "^8.11.0",
     "telegraf": "^4.14.0",
     "typescript": "^5.2.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.10.0",

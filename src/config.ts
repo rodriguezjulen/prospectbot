@@ -1,0 +1,100 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+function str(name: string, fallback = ''): string {
+  const v = process.env[name];
+  return v === undefined || v.trim() === '' ? fallback : v.trim();
+}
+
+function int(name: string, fallback: number): number {
+  const v = parseInt(str(name), 10);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+function bool(name: string, fallback: boolean): boolean {
+  const v = str(name).toLowerCase();
+  if (v === '') return fallback;
+  return v === 'true' || v === '1' || v === 'yes';
+}
+
+/** Accepts JSON array ('["a","b"]') or comma-separated list ('a,b'). */
+function list(name: string, fallback: string[]): string[] {
+  const raw = str(name);
+  if (!raw) return fallback;
+  if (raw.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((x) => String(x).trim()).filter(Boolean);
+      }
+    } catch {
+      // fall through to CSV parsing
+    }
+  }
+  return raw
+    .split(',')
+    .map((s) => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
+export interface AppConfig {
+  databaseUrl: string;
+  hunterApiKey: string;
+  googleCseId: string;
+  googleApiKey: string;
+  lemlistApiKey: string;
+  lemlistCampaignPrefix: string;
+  telegramBotToken: string;
+  telegramChatId: string;
+  searchKeywords: string[];
+  searchCountry: string;
+  searchLimit: number;
+  minCompanySize: number;
+  maxCompanySize: number;
+  focusTechStack: string[];
+  allowedTlds: string[];
+  cronSchedule: string;
+  runOnStart: boolean;
+  mockMode: boolean;
+  requestDelayMs: number;
+  hunterMaxSearchesPerRun: number;
+  exportsDir: string;
+  logsDir: string;
+}
+
+const hunterApiKey = str('HUNTER_API_KEY');
+const googleCseId = str('GOOGLE_CSE_ID');
+const googleApiKey = str('GOOGLE_API_KEY');
+
+export const config: AppConfig = {
+  databaseUrl: str('DATABASE_URL', 'postgresql://prospectbot:prospectbot@localhost:5432/prospectbot'),
+  hunterApiKey,
+  googleCseId,
+  googleApiKey,
+  lemlistApiKey: str('LEMLIST_API_KEY'),
+  lemlistCampaignPrefix: str('LEMLIST_CAMPAIGN_PREFIX', 'ProspectBot'),
+  telegramBotToken: str('TELEGRAM_BOT_TOKEN'),
+  telegramChatId: str('TELEGRAM_CHAT_ID'),
+  searchKeywords: list('SEARCH_KEYWORDS', ['startups Node.js', 'pymes Python AWS', 'tech entrepreneurs Spain']),
+  searchCountry: str('SEARCH_COUNTRY', 'Spain'),
+  searchLimit: int('SEARCH_LIMIT', 300),
+  minCompanySize: int('MIN_COMPANY_SIZE', 10),
+  maxCompanySize: int('MAX_COMPANY_SIZE', 500),
+  focusTechStack: list('FOCUS_TECH_STACK', ['Node.js', 'Python', 'AWS', 'PostgreSQL']),
+  allowedTlds: list('ALLOWED_TLDS', ['com', 'es', 'eu', 'io']).map((t) => t.replace(/^\./, '').toLowerCase()),
+  cronSchedule: str('CRON_SCHEDULE', '0 9 * * 1'),
+  runOnStart: bool('RUN_ON_START', false),
+  // Mock mode is automatic when search or Hunter credentials are missing.
+  mockMode: bool('MOCK_MODE', false) || !hunterApiKey || !googleCseId || !googleApiKey,
+  requestDelayMs: int('REQUEST_DELAY_MS', 1500),
+  hunterMaxSearchesPerRun: int('HUNTER_MAX_SEARCHES_PER_RUN', 25),
+  exportsDir: path.resolve(process.cwd(), 'exports'),
+  logsDir: path.resolve(process.cwd(), 'logs'),
+};
+
+export const isGoogleConfigured = (): boolean => !config.mockMode && !!config.googleCseId && !!config.googleApiKey;
+export const isHunterConfigured = (): boolean => !config.mockMode && !!config.hunterApiKey;
+export const isLemlistConfigured = (): boolean => !!config.lemlistApiKey;
+export const isTelegramConfigured = (): boolean => !!config.telegramBotToken && !!config.telegramChatId;

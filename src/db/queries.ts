@@ -117,12 +117,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export interface ContactForEmail extends ContactRecord {
   company_name: string;
+  domain: string;
+  tech_stack: string[];
 }
 
 /** Contacts never emailed yet, oldest-first, capped by limit (daily send cap). */
 export async function getContactsPendingEmail(limit: number): Promise<ContactForEmail[]> {
   const { rows } = await pool.query<ContactForEmail>(
-    `SELECT c.*, co.name AS company_name
+    `SELECT c.*, co.name AS company_name, co.domain, co.tech_stack
      FROM contacts c
      JOIN companies co ON co.id = c.company_id
      WHERE c.emailed_at IS NULL

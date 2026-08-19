@@ -5,6 +5,7 @@ import { getContactsPendingEmail, markContactEmailed } from '../db/queries';
 import { pool, pingDb } from '../db/pool';
 import { sendEmail, verifySmtp } from './mailer';
 import { renderEmail, defaultBodyTemplate } from './template';
+import { generateOpeningLine, isAiPersonalizationConfigured } from './personalize';
 
 const log = createLogger('email:send');
 
@@ -43,12 +44,17 @@ export async function runEmailSend(): Promise<SendRunResult> {
   }
 
   const contacts = await getContactsPendingEmail(config.emailDailyLimit);
-  log.info(`${contacts.length} contacts pending email (limit ${config.emailDailyLimit})`, { dryRun });
+  log.info(`${contacts.length} contacts pending email (limit ${config.emailDailyLimit})`, {
+    dryRun,
+    aiPersonalization: isAiPersonalizationConfigured(),
+  });
 
   let sent = 0;
   let failed = 0;
 
   for (const contact of contacts) {
+    const openingLine = await generateOpeningLine(contact.company_name, contact.domain, contact.tech_stack);
+
     const { subject, text } = renderEmail(
       {
         first_name: firstNameFromEmail(contact.email),
@@ -59,7 +65,8 @@ export async function runEmailSend(): Promise<SendRunResult> {
       config.emailFromName,
       config.emailSubject,
       defaultBodyTemplate,
-      config.emailUnsubscribeText
+      config.emailUnsubscribeText,
+      openingLine
     );
 
     if (dryRun) {

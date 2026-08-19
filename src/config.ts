@@ -75,6 +75,8 @@ export interface AppConfig {
   sendEmails: boolean;
   emailDailyLimit: number;
   emailDelayMs: number;
+  anthropicApiKey: string;
+  anthropicModel: string;
 }
 
 const hunterApiKey = str('HUNTER_API_KEY');
@@ -119,6 +121,8 @@ export const config: AppConfig = {
   sendEmails: bool('SEND_EMAILS', false),
   emailDailyLimit: int('EMAIL_DAILY_LIMIT', 50),
   emailDelayMs: int('EMAIL_DELAY_MS', 3000),
+  anthropicApiKey: str('ANTHROPIC_API_KEY'),
+  anthropicModel: str('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
 };
 
 export const isGoogleConfigured = (): boolean => !config.mockMode && !!config.googleCseId && !!config.googleApiKey;

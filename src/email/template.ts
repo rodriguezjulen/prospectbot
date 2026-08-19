@@ -15,25 +15,34 @@ function render(text: string, vars: TemplateVars): string {
 
 const DEFAULT_BODY = `Hola {{first_name}},
 
-Vi que en {{company}} estáis construyendo cosas interesantes en el sector tech,
-y quería preguntaros rápidamente si os interesaría conocer cómo ayudamos a
-equipos como el vuestro a [propuesta de valor aquí].
+{{opening_line}}
 
 ¿Tenéis 15 minutos esta semana para una llamada rápida?
 
 Saludos,
 {{from_name}}`;
 
-/** Renders subject + plain-text body from templates, appending the configured unsubscribe line. */
+const FALLBACK_OPENING_LINE =
+  'Vi que en {{company}} estáis construyendo cosas interesantes en el sector tech, y quería preguntaros rápidamente si os interesaría conocer cómo ayudamos a equipos como el vuestro a [propuesta de valor aquí].';
+
+/**
+ * Renders subject + plain-text body from templates, appending the configured unsubscribe line.
+ * `openingLine` is the (optionally AI-generated) personalized paragraph — falls back to a
+ * generic line when not provided, so the email is always well-formed even without AI.
+ */
 export function renderEmail(
   vars: TemplateVars,
   fromName: string,
   subjectTemplate: string,
   bodyTemplate: string,
-  unsubscribeText: string
+  unsubscribeText: string,
+  openingLine?: string | null
 ): { subject: string; text: string } {
   const subject = render(subjectTemplate, vars);
-  const body = render(bodyTemplate, vars).replace(/\{\{from_name\}\}/g, fromName);
+  const opening = render(openingLine || FALLBACK_OPENING_LINE, vars);
+  const body = render(bodyTemplate, vars)
+    .replace(/\{\{opening_line\}\}/g, opening)
+    .replace(/\{\{from_name\}\}/g, fromName);
   const text = `${body}\n\n---\n${unsubscribeText}`;
   return { subject, text };
 }

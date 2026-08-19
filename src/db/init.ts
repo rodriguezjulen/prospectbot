@@ -26,8 +26,13 @@ CREATE TABLE IF NOT EXISTS contacts (
   confidence_score INTEGER CHECK (confidence_score BETWEEN 0 AND 100),
   source VARCHAR(100),
   validated BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  emailed_at TIMESTAMP,
+  email_status VARCHAR(50)
 );
+
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS emailed_at TIMESTAMP;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_status VARCHAR(50);
 
 CREATE TABLE IF NOT EXISTS campaign_exports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

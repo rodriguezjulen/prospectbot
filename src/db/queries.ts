@@ -114,3 +114,25 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     exportsHistory: exports,
   };
 }
+
+export interface ContactForEmail extends ContactRecord {
+  company_name: string;
+}
+
+/** Contacts never emailed yet, oldest-first, capped by limit (daily send cap). */
+export async function getContactsPendingEmail(limit: number): Promise<ContactForEmail[]> {
+  const { rows } = await pool.query<ContactForEmail>(
+    `SELECT c.*, co.name AS company_name
+     FROM contacts c
+     JOIN companies co ON co.id = c.company_id
+     WHERE c.emailed_at IS NULL
+     ORDER BY c.created_at ASC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows;
+}
+
+export async function markContactEmailed(contactId: string, status: 'sent' | 'failed'): Promise<void> {
+  await pool.query(`UPDATE contacts SET emailed_at = NOW(), email_status = $2 WHERE id = $1`, [contactId, status]);
+}

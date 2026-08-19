@@ -12,6 +12,7 @@ import { notifyTelegram } from './notify/telegram';
 import { pingDb, pool } from './db/pool';
 import { upsertCompany, insertContactIfNew, recordExport } from './db/queries';
 import { firstNameFromEmail } from './utils';
+import { runEmailSend } from './email/send';
 import type { EnrichedCompany, LeadRow, ValidatedContact } from './db/models';
 
 const log = createLogger('pipeline');
@@ -23,6 +24,8 @@ export interface PipelineResult {
   newContactsInserted: number;
   csvPath: string | null;
   lemlistSynced: number;
+  emailsSent: number;
+  emailsFailed: number;
 }
 
 async function enrichCompany(domain: string, name: string, source: string, foundAt: string): Promise<EnrichedCompany> {
@@ -123,9 +126,21 @@ export async function runPipeline(): Promise<PipelineResult> {
     log.warn('no leads passed filters — skipping CSV export');
   }
 
+  let emailsSent = 0;
+  let emailsFailed = 0;
+  if (dbUp) {
+    const emailResult = await runEmailSend();
+    emailsSent = emailResult.sent;
+    emailsFailed = emailResult.failed;
+    if (emailResult.dryRun && config.sendEmails === false) {
+      log.info('SEND_EMAILS=false — email step ran in dry-run (no real emails sent)');
+    }
+  }
+
   const summary = `✅ ProspectBot: ${leadRows.length} nuevos leads generados` +
     (csvPath ? ` (${csvPath})` : '') +
-    (lemlistSynced ? `. ${lemlistSynced} sincronizados a Lemlist.` : '.');
+    (lemlistSynced ? `. ${lemlistSynced} sincronizados a Lemlist.` : '.') +
+    (emailsSent ? ` ${emailsSent} emails enviados.` : '');
   await notifyTelegram(summary);
   log.info('pipeline run finished', { summary });
 
@@ -136,6 +151,8 @@ export async function runPipeline(): Promise<PipelineResult> {
     newContactsInserted,
     csvPath,
     lemlistSynced,
+    emailsSent,
+    emailsFailed,
   };
 }
 

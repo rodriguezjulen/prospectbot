@@ -62,6 +62,19 @@ export interface AppConfig {
   hunterMaxSearchesPerRun: number;
   exportsDir: string;
   logsDir: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass: string;
+  smtpSecure: boolean;
+  emailFrom: string;
+  emailFromName: string;
+  emailSubject: string;
+  emailReplyTo: string;
+  emailUnsubscribeText: string;
+  sendEmails: boolean;
+  emailDailyLimit: number;
+  emailDelayMs: number;
 }
 
 const hunterApiKey = str('HUNTER_API_KEY');
@@ -92,9 +105,24 @@ export const config: AppConfig = {
   hunterMaxSearchesPerRun: int('HUNTER_MAX_SEARCHES_PER_RUN', 25),
   exportsDir: path.resolve(process.cwd(), 'exports'),
   logsDir: path.resolve(process.cwd(), 'logs'),
+  smtpHost: str('SMTP_HOST'),
+  smtpPort: int('SMTP_PORT', 587),
+  smtpUser: str('SMTP_USER'),
+  smtpPass: str('SMTP_PASS'),
+  smtpSecure: bool('SMTP_SECURE', false),
+  emailFrom: str('EMAIL_FROM'),
+  emailFromName: str('EMAIL_FROM_NAME', 'ProspectBot'),
+  emailSubject: str('EMAIL_SUBJECT', 'Rápida pregunta sobre {{company}}'),
+  emailReplyTo: str('EMAIL_REPLY_TO'),
+  emailUnsubscribeText: str('EMAIL_UNSUBSCRIBE_TEXT', 'Si no quieres recibir más correos, responde con "BAJA".'),
+  // Off by default — sending real cold emails is irreversible and must be an explicit choice.
+  sendEmails: bool('SEND_EMAILS', false),
+  emailDailyLimit: int('EMAIL_DAILY_LIMIT', 50),
+  emailDelayMs: int('EMAIL_DELAY_MS', 3000),
 };
 
 export const isGoogleConfigured = (): boolean => !config.mockMode && !!config.googleCseId && !!config.googleApiKey;
 export const isHunterConfigured = (): boolean => !config.mockMode && !!config.hunterApiKey;
 export const isLemlistConfigured = (): boolean => !!config.lemlistApiKey;
 export const isTelegramConfigured = (): boolean => !!config.telegramBotToken && !!config.telegramChatId;
+export const isSmtpConfigured = (): boolean => !!config.smtpHost && !!config.smtpUser && !!config.smtpPass && !!config.emailFrom;

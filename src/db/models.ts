@@ -19,6 +19,8 @@ export interface ContactRecord {
   source: string;
   validated: boolean;
   created_at: string;
+  emailed_at: string | null;
+  email_status: string | null;
 }
 
 export type ExportStatus = 'pending' | 'completed' | 'failed';

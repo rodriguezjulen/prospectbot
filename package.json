@@ -14,6 +14,7 @@
     "dev": "ts-node src/main.ts --once",
     "run:once": "ts-node src/main.ts --once",
     "web": "ts-node src/web/server.ts",
+    "send-emails": "ts-node src/email/send.ts",
     "db:init": "ts-node src/db/init.ts",
     "test:scraper": "ts-node src/scraper/test.ts",
     "typecheck": "tsc --noEmit"
@@ -24,6 +25,7 @@
     "dotenv": "^16.3.1",
     "express": "^5.2.1",
     "node-cron": "^3.0.2",
+    "nodemailer": "^9.0.5",
     "pg": "^8.11.0",
     "telegraf": "^4.14.0",
     "typescript": "^5.2.0"
@@ -32,6 +34,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.10.0",
     "ts-node": "^10.9.0"
   }

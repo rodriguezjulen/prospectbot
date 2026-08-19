@@ -2,7 +2,7 @@ import { ImapFlow, type FetchMessageObject } from 'imapflow';
 import { config, isImapConfigured } from '../config';
 import { createLogger } from '../logger';
 import { errorMessage } from '../utils';
-import { markContactReplied } from '../db/queries';
+import { markContactReplied, getPendingReplyEmails } from '../db/queries';
 
 const log = createLogger('email:inbox');
 
@@ -17,13 +17,23 @@ function extractSnippet(text: string | undefined): string {
   return cleaned.trim().slice(0, 280);
 }
 
+const LOOKBACK_DAYS = 14;
+
 /**
- * Scans the inbox for unread messages, matches sender against known contact emails,
- * and marks the first reply per contact. Safe no-op when IMAP isn't configured.
+ * Scans recent inbox messages (last LOOKBACK_DAYS) for replies from contacts we're
+ * waiting to hear back from. Filters by envelope (cheap) before downloading any body,
+ * so this stays fast even on inboxes with a large unread backlog unrelated to
+ * ProspectBot. Safe no-op when IMAP isn't configured or there's nobody to hear from.
  */
 export async function checkInboxForReplies(): Promise<InboxCheckResult> {
   if (!isImapConfigured()) {
     log.info('IMAP not configured — skipping reply check');
+    return { checked: 0, newReplies: 0 };
+  }
+
+  const pendingEmails = new Set(await getPendingReplyEmails());
+  if (pendingEmails.size === 0) {
+    log.info('no contacts awaiting a reply — skipping inbox scan');
     return { checked: 0, newReplies: 0 };
   }
 
@@ -42,24 +52,26 @@ export async function checkInboxForReplies(): Promise<InboxCheckResult> {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX');
     try {
-      const uids = await client.search({ seen: false }, { uid: true });
-      if (!uids || uids.length === 0) return { checked: 0, newReplies: 0 };
+      const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+      const uids = await client.search({ since }, { uid: true });
 
-      for await (const msg of client.fetch(uids, { envelope: true, source: false, bodyStructure: true }) as AsyncIterable<FetchMessageObject>) {
-        checked++;
-        const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
-        if (!fromAddr) continue;
+      if (uids && uids.length > 0) {
+        for await (const msg of client.fetch(uids, { envelope: true }) as AsyncIterable<FetchMessageObject>) {
+          checked++;
+          const fromAddr = msg.envelope?.from?.[0]?.address?.toLowerCase();
+          if (!fromAddr || !pendingEmails.has(fromAddr)) continue;
 
-        const { content } = await client.download(msg.uid, undefined, { uid: true });
-        const chunks: Buffer[] = [];
-        for await (const chunk of content) chunks.push(chunk as Buffer);
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const snippet = extractSnippet(raw.replace(/^[\s\S]*?\r?\n\r?\n/, ''));
+          const { content } = await client.download(msg.uid, undefined, { uid: true });
+          const chunks: Buffer[] = [];
+          for await (const chunk of content) chunks.push(chunk as Buffer);
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const snippet = extractSnippet(raw.replace(/^[\s\S]*?\r?\n\r?\n/, ''));
 
-        const contactId = await markContactReplied(fromAddr, snippet);
-        if (contactId) {
-          newReplies++;
-          log.info(`reply detected from ${fromAddr}`);
+          const contactId = await markContactReplied(fromAddr, snippet);
+          if (contactId) {
+            newReplies++;
+            log.info(`reply detected from ${fromAddr}`);
+          }
         }
       }
     } finally {

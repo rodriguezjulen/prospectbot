@@ -172,6 +172,14 @@ export async function markContactFollowedUp(contactId: string, status: 'sent' | 
 }
 
 /** Marks a contact as replied (called by inbox tracker) with a short preview of their reply. */
+/** Emails of contacts we're waiting to hear back from — used to filter inbox scans. */
+export async function getPendingReplyEmails(): Promise<string[]> {
+  const { rows } = await pool.query<{ email: string }>(
+    `SELECT email FROM contacts WHERE emailed_at IS NOT NULL AND replied_at IS NULL`
+  );
+  return rows.map((r) => r.email.toLowerCase());
+}
+
 export async function markContactReplied(email: string, snippet: string): Promise<string | null> {
   const { rows } = await pool.query<{ id: string }>(
     `UPDATE contacts SET replied_at = NOW(), reply_snippet = $2 WHERE email = $1 AND replied_at IS NULL RETURNING id`,

@@ -1,9 +1,9 @@
-import { config, isSmtpConfigured } from '../config';
+import { config, isEmailProviderConfigured } from '../config';
 import { createLogger } from '../logger';
 import { sleep, firstNameFromEmail } from '../utils';
 import { getContactsPendingEmail, markContactEmailed } from '../db/queries';
 import { pool, pingDb } from '../db/pool';
-import { sendEmail, verifySmtp } from './mailer';
+import { sendEmail, verifyEmailProvider } from './mailer';
 import { renderEmail, defaultBodyTemplate } from './template';
 import { generateOpeningLine, isAiPersonalizationConfigured } from './personalize';
 
@@ -24,8 +24,8 @@ export interface SendRunResult {
 export async function runEmailSend(): Promise<SendRunResult> {
   const dryRun = !config.sendEmails;
 
-  if (!dryRun && !isSmtpConfigured()) {
-    log.error('SEND_EMAILS=true but SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS/EMAIL_FROM) — aborting');
+  if (!dryRun && !isEmailProviderConfigured()) {
+    log.error('SEND_EMAILS=true but no email provider is configured (set RESEND_API_KEY + EMAIL_FROM, or SMTP_*) — aborting');
     return { attempted: 0, sent: 0, failed: 0, dryRun: true };
   }
 
@@ -36,9 +36,9 @@ export async function runEmailSend(): Promise<SendRunResult> {
   }
 
   if (!dryRun) {
-    const smtpOk = await verifySmtp();
-    if (!smtpOk) {
-      log.error('SMTP verification failed — aborting send (check SMTP_HOST/PORT/USER/PASS)');
+    const providerOk = await verifyEmailProvider();
+    if (!providerOk) {
+      log.error('email provider verification failed — aborting send');
       return { attempted: 0, sent: 0, failed: 0, dryRun };
     }
   }
@@ -96,7 +96,7 @@ if (require.main === module) {
     .then((result) => {
       if (result.dryRun) {
         console.log('\nDRY RUN — no se envió ningún email de verdad.');
-        console.log('Para enviar de verdad: configura SMTP_* + EMAIL_FROM en .env y pon SEND_EMAILS=true.\n');
+        console.log('Para enviar de verdad: configura RESEND_API_KEY + EMAIL_FROM en .env y pon SEND_EMAILS=true.\n');
       }
       return pool.end();
     })

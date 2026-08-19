@@ -77,6 +77,7 @@ export interface AppConfig {
   emailDelayMs: number;
   anthropicApiKey: string;
   anthropicModel: string;
+  resendApiKey: string;
 }
 
 const hunterApiKey = str('HUNTER_API_KEY');
@@ -123,6 +124,7 @@ export const config: AppConfig = {
   emailDelayMs: int('EMAIL_DELAY_MS', 3000),
   anthropicApiKey: str('ANTHROPIC_API_KEY'),
   anthropicModel: str('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
+  resendApiKey: str('RESEND_API_KEY'),
 };
 
 export const isGoogleConfigured = (): boolean => !config.mockMode && !!config.googleCseId && !!config.googleApiKey;
@@ -130,3 +132,5 @@ export const isHunterConfigured = (): boolean => !config.mockMode && !!config.hu
 export const isLemlistConfigured = (): boolean => !!config.lemlistApiKey;
 export const isTelegramConfigured = (): boolean => !!config.telegramBotToken && !!config.telegramChatId;
 export const isSmtpConfigured = (): boolean => !!config.smtpHost && !!config.smtpUser && !!config.smtpPass && !!config.emailFrom;
+export const isResendConfigured = (): boolean => !!config.resendApiKey && !!config.emailFrom;
+export const isEmailProviderConfigured = (): boolean => isResendConfigured() || isSmtpConfigured();

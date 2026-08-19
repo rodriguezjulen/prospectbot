@@ -1,5 +1,6 @@
+import axios from 'axios';
 import nodemailer, { type Transporter } from 'nodemailer';
-import { config, isSmtpConfigured } from '../config';
+import { config, isSmtpConfigured, isResendConfigured } from '../config';
 import { createLogger } from '../logger';
 import { errorMessage } from '../utils';
 
@@ -24,11 +25,31 @@ export interface SendResult {
   error?: string;
 }
 
-/** Sends one plain-text email via the configured SMTP account. Returns ok:false (never throws) on failure so a batch send can continue. */
-export async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
-  if (!isSmtpConfigured()) {
-    return { ok: false, error: 'SMTP not configured' };
+async function sendViaResend(to: string, subject: string, text: string): Promise<SendResult> {
+  try {
+    await axios.post(
+      'https://api.resend.com/emails',
+      {
+        from: `${config.emailFromName} <${config.emailFrom}>`,
+        to: [to],
+        subject,
+        text,
+        reply_to: config.emailReplyTo || config.emailFrom,
+      },
+      {
+        headers: { Authorization: `Bearer ${config.resendApiKey}`, 'content-type': 'application/json' },
+        timeout: 15_000,
+      }
+    );
+    return { ok: true };
+  } catch (err) {
+    const message = errorMessage(err);
+    log.error(`Resend send failed for ${to}: ${message}`);
+    return { ok: false, error: message };
   }
+}
+
+async function sendViaSmtp(to: string, subject: string, text: string): Promise<SendResult> {
   try {
     await getTransporter().sendMail({
       from: `${config.emailFromName} <${config.emailFrom}>`,
@@ -40,12 +61,21 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
     return { ok: true };
   } catch (err) {
     const message = errorMessage(err);
-    log.error(`send failed for ${to}: ${message}`);
+    log.error(`SMTP send failed for ${to}: ${message}`);
     return { ok: false, error: message };
   }
 }
 
-export async function verifySmtp(): Promise<boolean> {
+/** Sends one plain-text email — prefers Resend (single API key) when configured, else falls back to SMTP. */
+export async function sendEmail(to: string, subject: string, text: string): Promise<SendResult> {
+  if (isResendConfigured()) return sendViaResend(to, subject, text);
+  if (isSmtpConfigured()) return sendViaSmtp(to, subject, text);
+  return { ok: false, error: 'no email provider configured (set RESEND_API_KEY or SMTP_*)' };
+}
+
+/** Verifies the active email provider is reachable before a batch send. Resend has no verify endpoint, so a configured key is treated as ready. */
+export async function verifyEmailProvider(): Promise<boolean> {
+  if (isResendConfigured()) return true;
   if (!isSmtpConfigured()) return false;
   try {
     await getTransporter().verify();

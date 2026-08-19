@@ -82,6 +82,28 @@ Ver [.env.example](.env.example) — todas comentadas. Las relevantes:
 | `npm run db:init` | Crea las tablas si no existen |
 | `npm run test:scraper` | Prueba solo el scraper (mock o real) |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run web` | Arranca el dashboard web (puerto 3300, override con `PORT`) |
+| `npm run send-emails` | Envía (o dry-run) emails a leads pendientes |
+
+## Dashboard web
+
+```
+npm run web
+```
+
+Abre `http://localhost:3300`. Muestra estadísticas (empresas, contactos, exports) y tabla de leads con búsqueda y paginación. Solo lectura, usa la misma DB del pipeline.
+
+## Envío de emails
+
+ProspectBot puede mandar los correos directamente (sin pasar por Lemlist).
+
+- **Dry-run por defecto** (`SEND_EMAILS=false`): solo loguea qué mandaría, no envía nada ni escribe en DB. Corre así en cada pipeline automáticamente.
+- **Proveedor: Resend** (recomendado) — gratis, 3000 emails/mes, solo `RESEND_API_KEY` + `EMAIL_FROM`. Crea cuenta en resend.com, verifica dominio, copia key.
+- **Alternativa: SMTP** — si no hay `RESEND_API_KEY`, usa `SMTP_HOST/USER/PASS` (Gmail, etc).
+- Para activar envío real: rellena `.env` y pon `SEND_EMAILS=true`.
+- Límite diario: `EMAIL_DAILY_LIMIT` (default 50), delay entre envíos: `EMAIL_DELAY_MS`.
+- Personalización IA (opcional): con `ANTHROPIC_API_KEY` configurada, genera una línea de apertura personalizada por lead vía Claude (modelo `ANTHROPIC_MODEL`, default `claude-haiku-4-5-20251001`). Sin key, usa línea genérica de fallback. Nunca falla el envío si la IA falla.
+- Se ejecuta automáticamente como paso final del pipeline semanal (`npm start` / cron).
 
 ## Notas de diseño
 

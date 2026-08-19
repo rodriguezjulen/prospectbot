@@ -136,5 +136,73 @@ export async function getContactsPendingEmail(limit: number): Promise<ContactFor
 }
 
 export async function markContactEmailed(contactId: string, status: 'sent' | 'failed'): Promise<void> {
-  await pool.query(`UPDATE contacts SET emailed_at = NOW(), email_status = $2 WHERE id = $1`, [contactId, status]);
+  await pool.query(
+    `UPDATE contacts SET emailed_at = NOW(), email_status = $2, last_contacted_at = NOW() WHERE id = $1`,
+    [contactId, status]
+  );
+}
+
+export interface ContactForFollowUp extends ContactRecord {
+  company_name: string;
+  domain: string;
+}
+
+/** Contacts emailed but never replied, ready for next follow-up (delay elapsed, under max count). */
+export async function getContactsPendingFollowUp(delayDays: number, maxFollowUps: number, limit: number): Promise<ContactForFollowUp[]> {
+  const { rows } = await pool.query<ContactForFollowUp>(
+    `SELECT c.*, co.name AS company_name, co.domain
+     FROM contacts c
+     JOIN companies co ON co.id = c.company_id
+     WHERE c.emailed_at IS NOT NULL
+       AND c.replied_at IS NULL
+       AND c.follow_up_count < $2
+       AND c.last_contacted_at < NOW() - ($1 || ' days')::INTERVAL
+     ORDER BY c.last_contacted_at ASC
+     LIMIT $3`,
+    [delayDays, maxFollowUps, limit]
+  );
+  return rows;
+}
+
+export async function markContactFollowedUp(contactId: string, status: 'sent' | 'failed'): Promise<void> {
+  await pool.query(
+    `UPDATE contacts SET follow_up_count = follow_up_count + 1, last_contacted_at = NOW(), email_status = $2 WHERE id = $1`,
+    [contactId, status]
+  );
+}
+
+/** Marks a contact as replied (called by inbox tracker) with a short preview of their reply. */
+export async function markContactReplied(email: string, snippet: string): Promise<string | null> {
+  const { rows } = await pool.query<{ id: string }>(
+    `UPDATE contacts SET replied_at = NOW(), reply_snippet = $2 WHERE email = $1 AND replied_at IS NULL RETURNING id`,
+    [email, snippet]
+  );
+  return rows[0]?.id ?? null;
+}
+
+export interface ContactForAiReply extends ContactRecord {
+  company_name: string;
+  domain: string;
+}
+
+/** Contacts who replied and have no AI draft/send yet. */
+export async function getContactsPendingAiReply(limit: number): Promise<ContactForAiReply[]> {
+  const { rows } = await pool.query<ContactForAiReply>(
+    `SELECT c.*, co.name AS company_name, co.domain
+     FROM contacts c
+     JOIN companies co ON co.id = c.company_id
+     WHERE c.replied_at IS NOT NULL AND c.ai_reply_sent_at IS NULL AND c.ai_reply_draft IS NULL
+     ORDER BY c.replied_at ASC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows;
+}
+
+export async function saveAiReplyDraft(contactId: string, draft: string): Promise<void> {
+  await pool.query(`UPDATE contacts SET ai_reply_draft = $2 WHERE id = $1`, [contactId, draft]);
+}
+
+export async function markAiReplySent(contactId: string): Promise<void> {
+  await pool.query(`UPDATE contacts SET ai_reply_sent_at = NOW() WHERE id = $1`, [contactId]);
 }

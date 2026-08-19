@@ -84,6 +84,8 @@ Ver [.env.example](.env.example) — todas comentadas. Las relevantes:
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run web` | Arranca el dashboard web (puerto 3300, override con `PORT`) |
 | `npm run send-emails` | Envía (o dry-run) emails a leads pendientes |
+| `npm run check-inbox` | Revisa el buzón IMAP y marca respuestas |
+| `npm run send-followups` | Manda follow-ups (o dry-run) a quien no respondió |
 
 ## Dashboard web
 
@@ -104,6 +106,13 @@ ProspectBot puede mandar los correos directamente (sin pasar por Lemlist).
 - Límite diario: `EMAIL_DAILY_LIMIT` (default 50), delay entre envíos: `EMAIL_DELAY_MS`.
 - Personalización IA (opcional): con `ANTHROPIC_API_KEY` configurada, genera una línea de apertura personalizada por lead vía Claude (modelo `ANTHROPIC_MODEL`, default `claude-haiku-4-5-20251001`). Sin key, usa línea genérica de fallback. Nunca falla el envío si la IA falla.
 - Se ejecuta automáticamente como paso final del pipeline semanal (`npm start` / cron).
+
+## Respuestas y follow-up automático
+
+- **Detección de respuestas**: si configuras `IMAP_*` (mismo buzón que `EMAIL_FROM`), el pipeline revisa la bandeja cada semana y marca qué contactos respondieron (`contacts.replied_at`, `reply_snippet`).
+- **Follow-up automático**: a quien no respondió en `FOLLOW_UP_DELAY_DAYS` días (default 4), se le manda un recordatorio corto, hasta `FOLLOW_UP_MAX` veces (default 2). Mismo dry-run por defecto que el envío inicial.
+- **Respuesta con IA**: si `ANTHROPIC_API_KEY` está configurada, al detectar una respuesta el bot redacta un borrador de contestación (guardado en `contacts.ai_reply_draft`, visible en el dashboard/DB). El envío automático de esa respuesta está apagado por defecto (`AUTO_REPLY_ENABLED=false`) — se manda solo si lo activas explícitamente, porque una respuesta de IA sin revisión humana es una acción irreversible que puede fallar el tono.
+- Todo esto corre solo dentro del pipeline semanal (`npm start` / cron) si la DB está disponible; también hay scripts manuales (`check-inbox`, `send-followups`) para probar cada paso suelto.
 
 ## Notas de diseño
 

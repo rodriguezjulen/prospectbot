@@ -78,6 +78,14 @@ export interface AppConfig {
   anthropicApiKey: string;
   anthropicModel: string;
   resendApiKey: string;
+  imapHost: string;
+  imapPort: number;
+  imapUser: string;
+  imapPass: string;
+  imapSecure: boolean;
+  followUpDelayDays: number;
+  followUpMax: number;
+  autoReplyEnabled: boolean;
 }
 
 const hunterApiKey = str('HUNTER_API_KEY');
@@ -125,6 +133,15 @@ export const config: AppConfig = {
   anthropicApiKey: str('ANTHROPIC_API_KEY'),
   anthropicModel: str('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
   resendApiKey: str('RESEND_API_KEY'),
+  imapHost: str('IMAP_HOST'),
+  imapPort: int('IMAP_PORT', 993),
+  imapUser: str('IMAP_USER'),
+  imapPass: str('IMAP_PASS'),
+  imapSecure: bool('IMAP_SECURE', true),
+  followUpDelayDays: int('FOLLOW_UP_DELAY_DAYS', 4),
+  followUpMax: int('FOLLOW_UP_MAX', 2),
+  // Off by default — auto-sending AI-drafted replies is irreversible and must be an explicit choice.
+  autoReplyEnabled: bool('AUTO_REPLY_ENABLED', false),
 };
 
 export const isGoogleConfigured = (): boolean => !config.mockMode && !!config.googleCseId && !!config.googleApiKey;
@@ -134,3 +151,5 @@ export const isTelegramConfigured = (): boolean => !!config.telegramBotToken && 
 export const isSmtpConfigured = (): boolean => !!config.smtpHost && !!config.smtpUser && !!config.smtpPass && !!config.emailFrom;
 export const isResendConfigured = (): boolean => !!config.resendApiKey && !!config.emailFrom;
 export const isEmailProviderConfigured = (): boolean => isResendConfigured() || isSmtpConfigured();
+export const isImapConfigured = (): boolean => !!config.imapHost && !!config.imapUser && !!config.imapPass;
+export const isAnthropicConfigured = (): boolean => !!config.anthropicApiKey;

@@ -21,6 +21,12 @@ export interface ContactRecord {
   created_at: string;
   emailed_at: string | null;
   email_status: string | null;
+  follow_up_count: number;
+  last_contacted_at: string | null;
+  replied_at: string | null;
+  reply_snippet: string | null;
+  ai_reply_draft: string | null;
+  ai_reply_sent_at: string | null;
 }
 
 export type ExportStatus = 'pending' | 'completed' | 'failed';

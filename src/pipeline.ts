@@ -13,6 +13,9 @@ import { pingDb, pool } from './db/pool';
 import { upsertCompany, insertContactIfNew, recordExport } from './db/queries';
 import { firstNameFromEmail } from './utils';
 import { runEmailSend } from './email/send';
+import { checkInboxForReplies } from './email/inbox';
+import { runAutoReply } from './email/autoReply';
+import { runFollowUp } from './email/followUp';
 import type { EnrichedCompany, LeadRow, ValidatedContact } from './db/models';
 
 const log = createLogger('pipeline');
@@ -26,6 +29,10 @@ export interface PipelineResult {
   lemlistSynced: number;
   emailsSent: number;
   emailsFailed: number;
+  repliesDetected: number;
+  aiRepliesDrafted: number;
+  aiRepliesSent: number;
+  followUpsSent: number;
 }
 
 async function enrichCompany(domain: string, name: string, source: string, foundAt: string): Promise<EnrichedCompany> {
@@ -128,19 +135,37 @@ export async function runPipeline(): Promise<PipelineResult> {
 
   let emailsSent = 0;
   let emailsFailed = 0;
+  let repliesDetected = 0;
+  let aiRepliesDrafted = 0;
+  let aiRepliesSent = 0;
+  let followUpsSent = 0;
+
   if (dbUp) {
+    const inboxResult = await checkInboxForReplies();
+    repliesDetected = inboxResult.newReplies;
+
+    const autoReplyResult = await runAutoReply();
+    aiRepliesDrafted = autoReplyResult.drafted;
+    aiRepliesSent = autoReplyResult.sent;
+
     const emailResult = await runEmailSend();
     emailsSent = emailResult.sent;
     emailsFailed = emailResult.failed;
     if (emailResult.dryRun && config.sendEmails === false) {
       log.info('SEND_EMAILS=false — email step ran in dry-run (no real emails sent)');
     }
+
+    const followUpResult = await runFollowUp();
+    followUpsSent = followUpResult.sent;
   }
 
   const summary = `✅ ProspectBot: ${leadRows.length} nuevos leads generados` +
     (csvPath ? ` (${csvPath})` : '') +
     (lemlistSynced ? `. ${lemlistSynced} sincronizados a Lemlist.` : '.') +
-    (emailsSent ? ` ${emailsSent} emails enviados.` : '');
+    (emailsSent ? ` ${emailsSent} emails enviados.` : '') +
+    (followUpsSent ? ` ${followUpsSent} follow-ups enviados.` : '') +
+    (repliesDetected ? ` ${repliesDetected} respuestas nuevas detectadas.` : '') +
+    (aiRepliesDrafted ? ` ${aiRepliesDrafted} respuestas IA preparadas${aiRepliesSent ? ` (${aiRepliesSent} enviadas)` : ' (revisar en DB)'}.` : '');
   await notifyTelegram(summary);
   log.info('pipeline run finished', { summary });
 
@@ -153,6 +178,10 @@ export async function runPipeline(): Promise<PipelineResult> {
     lemlistSynced,
     emailsSent,
     emailsFailed,
+    repliesDetected,
+    aiRepliesDrafted,
+    aiRepliesSent,
+    followUpsSent,
   };
 }
 

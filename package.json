@@ -15,6 +15,8 @@
     "run:once": "ts-node src/main.ts --once",
     "web": "ts-node src/web/server.ts",
     "send-emails": "ts-node src/email/send.ts",
+    "check-inbox": "ts-node src/email/inbox.ts",
+    "send-followups": "ts-node src/email/followUp.ts",
     "db:init": "ts-node src/db/init.ts",
     "test:scraper": "ts-node src/scraper/test.ts",
     "typecheck": "tsc --noEmit"
@@ -24,6 +26,7 @@
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.3.1",
     "express": "^5.2.1",
+    "imapflow": "^1.7.1",
     "node-cron": "^3.0.2",
     "nodemailer": "^9.0.5",
     "pg": "^8.11.0",
@@ -32,7 +35,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^20.0.0",
+    "@types/node": "^20.19.43",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.10.0",
